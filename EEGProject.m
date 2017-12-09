@@ -1,51 +1,90 @@
 clear; clc;
 
 % Assigning train data directory & cahnging working directory
-data_dir = 'E:/Anger EEG';
+data_dir = 'E:/Anger EEG/EEG_project';
 cd(data_dir)
 
 loadFile = fullfile(data_dir, 'processedData_20151209_1514__0_1_50_hz.mat');
 load(loadFile);
 
+% Defining variable(features)
+DELTA_POWER = zeros(1,31); freqrange_delta = [0 4];
+THETA_POWER = zeros(1,31); freqrange_theta = [4 7];
+ALPHA_POWER = zeros(1,31); freqrange_alpha = [7 13];
+BETA_POWER = zeros(1,31); freqrange_beta = [13 30];
+GAMMA_POWER = zeros(1,31); freqrange_gamma = [30 50];
+
+SNR_DELTA_FINAL = zeros(1,31); THD_DELTA_FINAL = zeros(1,31); SINAD_DELTA_FINAL = zeros(1,31);
+SNR_THETA_FINAL = zeros(1,31); THD_THETA_FINAL = zeros(1,31); SINAD_THETA_FINAL = zeros(1,31); 
+SNR_ALPHA_FINAL = zeros(1,31); THD_ALPHA_FINAL = zeros(1,31); SINAD_ALPHA_FINAL = zeros(1,31);
+SNR_BETA_FINAL = zeros(1,31); THD_BETA_FINAL = zeros(1,31); SINAD_BETA_FINAL = zeros(1,31);
+SNR_GAMMA_FINAL = zeros(1,31); THD_GAMMA_FINAL = zeros(1,31); SINAD_GAMMA_FINAL = zeros(1,31);
+
 film_start = 0; film_end = 0; epochEndTime = 120; EEG.srate = 256;
+
 for iVideo = 1:3
     film_start = floor(EEG.event(1,iVideo).latency);
     film_end = floor(EEG.event(1,iVideo).latency) + floor(epochEndTime * EEG.srate);
     data = EEG.data(:,film_start:film_end)';
+    
     % add code of feat extraction below
-    Fs = 256; % sampling_frequency = 256 Hz
+      Fs = 500; % sampling_frequency = 256 Hz
     % Ts = 289999; % 289999/256
-    [N,nu]=size(data);%obtain size of data
+    % [N,nu]=size(data);%obtain size of data
     
-    % part-2
-    y=fft(data);% fft of data
-    ps1=abs(y).^2;% power spectrum using fft
-    freq=(1:N)*Fs/N;%frequency vector
-    h2=figure
-    plot(freq,20*log(ps1),'b')
-    title('POWER SPECTRUM USING FFT METHOD')
-     
-%     N = length(EEG_data);
-%     Y = fft(EEG_data);
-%     Y = Y(1:N/2+1);
-%     psd = (1/(Fs*N)) * abs(Y).^2;
-%     psd(2:end-1) = 2*psd(2:end-1);
-%     freq = 0:Fs/length(EEG_data):Fs/2;
-% 
-%     plot(freq,10*log10(psd))
-%     grid on
-%     title('Periodogram Using FFT')
-%     xlabel('Frequency (Hz)')
-%     ylabel('Power/Frequency (dB/Hz)')
-    
-% Three frequency bands
+% Five frequency bands
+%   delta = 1-4 Hz
 %   theta = 4-7 Hz
-%   alpha = 8 -13 Hz
+%   alpha = 7-13 Hz
 %   beta = 13-30 Hz
+%   gamma = 30-50 Hz
+
+%DELTA - BAND PASS FILTER (0-4)
+% Calculating band power
+del_pow = bandpower(data, Fs, freqrange_delta); 
+DELTA_POWER = cat(1,DELTA_POWER,del_pow);
 
 %THETA- BAND PASS FILTER (4-7)
+% Calculating band power
+theta_pow = bandpower(data, Fs, freqrange_theta); 
+THETA_POWER = cat(1,THETA_POWER,theta_pow);
 
-Fs = 500;  % Sampling Frequency
+%ALPHA BAND PASS FILTER (8-12)
+% Calculating band power
+alpha_pow = bandpower(data, Fs, freqrange_alpha); 
+ALPHA_POWER = cat(1,ALPHA_POWER,alpha_pow);
+
+%BETA  BAND PASS FILTER (12-30)
+% Calculating band power
+beta_pow = bandpower(data, Fs, freqrange_beta); 
+BETA_POWER = cat(1,BETA_POWER,beta_pow);
+
+%GAMMA - BAND PASS FILTER (4-7)
+% Calculating band power
+gamma_pow = bandpower(data, Fs, freqrange_gamma); 
+GAMMA_POWER = cat(1,GAMMA_POWER,gamma_pow);
+
+% DELTA BAND
+Fs = 500;                 % Sampling Frequency
+Fstop1 = 0.5;             % First Stopband Frequency
+Fpass1 = 1;               % First Passband Frequency
+Fpass2 = 4;               % Second Passband Frequency
+Fstop2 = 4.5;             % Second Stopband Frequency
+Dstop1 = 0.001;           % First Stopband Attenuation
+Dpass  = 0.057501127785;  % Passband Ripple
+Dstop2 = 0.0001;          % Second Stopband Attenuation
+dens   = 20;              % Density Factor
+
+% Calculate the order from the parameters using FIRPMORD.
+[N, Fo, Ao, W] = firpmord([Fstop1 Fpass1 Fpass2 Fstop2]/(Fs/2), [0 1 ...
+                       0], [Dstop1 Dpass Dstop2]);
+% Calculate the coefficients using the FIRPM function.
+b2 = firpm(N, Fo, Ao, W, {dens});
+Hd2 = dfilt.dffir(b2);
+x1=filter(Hd2,data);
+
+% THETA BAND
+Fs = 500;                 % Sampling Frequency
 Fstop1 = 3.5;             % First Stopband Frequency
 Fpass1 = 4;               % First Passband Frequency
 Fpass2 = 7;               % Second Passband Frequency
@@ -57,112 +96,180 @@ dens   = 20;              % Density Factor
 
 % Calculate the order from the parameters using FIRPMORD.
 [N, Fo, Ao, W] = firpmord([Fstop1 Fpass1 Fpass2 Fstop2]/(Fs/2), [0 1 ...
-                          0], [Dstop1 Dpass Dstop2]);
+                       0], [Dstop1 Dpass Dstop2]);
 % Calculate the coefficients using the FIRPM function.
 b2 = firpm(N, Fo, Ao, W, {dens});
 Hd2 = dfilt.dffir(b2);
 x2=filter(Hd2,data);
-h11=figure
-plot(x2,'r') % plot(t,x2,'r')
-title('waveform for THETA band')
 
-%FREQUENCY SPECTRUM OF THETA 
-L=10;
-Fs=500;
-NFFT = 2^nextpow2(L); % Next power of 2 from length of x2
-Y2 = fft(x2,NFFT)/L;
-f = Fs/2*linspace(0,1,NFFT/2);
-% Plot single-sided amplitude spectrum THETA 
-h12=figure
-plot(f,2*abs(Y2(1:NFFT/2))) 
-title('Single-Sided Amplitude Spectrum of THETA x2(t)')
-xlabel('Frequency (Hz)')
-ylabel('|Y2(f)|')
-
-
-
-%ALPHA BAND PASS FILTER (8-12)
-
-Fs = 500;  % Sampling Frequency
-Fstop1 = 7.5;             % First Stopband Frequency
-Fpass1 = 8;               % First Passband Frequency
-Fpass2 = 12;              % Second Passband Frequency
-Fstop2 = 12.5;            % Second Stopband Frequency
-Dstop1 = 0.0001;          % First Stopband Attenuation
+% ALPHA BAND
+Fs = 500;                 % Sampling Frequency
+Fstop1 = 6.5;             % First Stopband Frequency
+Fpass1 = 7;               % First Passband Frequency
+Fpass2 = 13;               % Second Passband Frequency
+Fstop2 = 13.5;             % Second Stopband Frequency
+Dstop1 = 0.001;           % First Stopband Attenuation
 Dpass  = 0.057501127785;  % Passband Ripple
 Dstop2 = 0.0001;          % Second Stopband Attenuation
 dens   = 20;              % Density Factor
 
 % Calculate the order from the parameters using FIRPMORD.
 [N, Fo, Ao, W] = firpmord([Fstop1 Fpass1 Fpass2 Fstop2]/(Fs/2), [0 1 ...
-                          0], [Dstop1 Dpass Dstop2]);
+                       0], [Dstop1 Dpass Dstop2]);
 % Calculate the coefficients using the FIRPM function.
-b3  = firpm(N, Fo, Ao, W, {dens});
-Hd3 = dfilt.dffir(b3);
-x3=filter(Hd3,data);
-h13=figure
-plot(x3,'r') % plot(t,x3,'r')
-title('waveform for ALPHA band')
-%FREQUENCY SPECTRUM OF ALPHA BAND
-L=10;
-Fs=500;
-NFFT = 2^nextpow2(L); % Next power of 2 from length of x3
-Y3 = fft(x3,NFFT)/L;
-f = Fs/2*linspace(0,1,NFFT/2);
-% Plot single-sided amplitude spectrum ALPHA
-h14=figure
-plot(f,2*abs(Y3(1:NFFT/2))) 
-title('Single-Sided Amplitude Spectrum of ALPHA x3(t)')
-xlabel('Frequency (Hz)')
-ylabel('|Y3(f)|')
+b2 = firpm(N, Fo, Ao, W, {dens});
+Hd2 = dfilt.dffir(b2);
+x3=filter(Hd2,data);
 
-
-%BETA  BAND PASS FILTER (12-30)
-
-Fs = 500;  % Sampling Frequency
-
-Fstop1 = 11.5;            % First Stopband Frequency
-Fpass1 = 12;              % First Passband Frequency
-Fpass2 = 30;              % Second Passband Frequency
-Fstop2 = 30.5;            % Second Stopband Frequency
-Dstop1 = 0.0001;          % First Stopband Attenuation
+% BETA BAND
+Fs = 500;                 % Sampling Frequency
+Fstop1 = 12.5;             % First Stopband Frequency
+Fpass1 = 13;               % First Passband Frequency
+Fpass2 = 30;               % Second Passband Frequency
+Fstop2 = 30.5;             % Second Stopband Frequency
+Dstop1 = 0.001;           % First Stopband Attenuation
 Dpass  = 0.057501127785;  % Passband Ripple
 Dstop2 = 0.0001;          % Second Stopband Attenuation
 dens   = 20;              % Density Factor
 
 % Calculate the order from the parameters using FIRPMORD.
 [N, Fo, Ao, W] = firpmord([Fstop1 Fpass1 Fpass2 Fstop2]/(Fs/2), [0 1 ...
-                          0], [Dstop1 Dpass Dstop2]);
+                       0], [Dstop1 Dpass Dstop2]);
+% Calculate the coefficients using the FIRPM function.
+b2 = firpm(N, Fo, Ao, W, {dens});
+Hd2 = dfilt.dffir(b2);
+x4=filter(Hd2,data);
 
-% Calculate the coefficients using the FIRPM function
-b4   = firpm(N, Fo, Ao, W, {dens});
-Hd4 = dfilt.dffir(b4);
-x4=filter(Hd4,data);
-h15=figure
-plot(x4,'r') %plot(t,x4,'r')
-title('waveform for BETA band')
-%Frequency spectrum of BETA band
-L=10;
-Fs=500;
-NFFT = 2^nextpow2(L); % Next power of 2 from length of x4
-Y4 = fft(x4,NFFT)/L;
-f = Fs/2*linspace(0,1,NFFT/2);
-% Plot single-sided amplitude spectrum BETA
-h16=figure
-plot(f,2*abs(Y4(1:NFFT/2))) 
-title('Single-Sided Amplitude Spectrum of BETA x4(t)')
-xlabel('Frequency (Hz)')
-ylabel('|Y4(f)|')
+% GAMMA BAND
+Fs = 500;                 % Sampling Frequency
+Fstop1 = 29.5;             % First Stopband Frequency
+Fpass1 = 30;               % First Passband Frequency
+Fpass2 = 50;               % Second Passband Frequency
+Fstop2 = 50.5;             % Second Stopband Frequency
+Dstop1 = 0.001;           % First Stopband Attenuation
+Dpass  = 0.057501127785;  % Passband Ripple
+Dstop2 = 0.0001;          % Second Stopband Attenuation
+dens   = 20;              % Density Factor
+
+% Calculate the order from the parameters using FIRPMORD.
+[N, Fo, Ao, W] = firpmord([Fstop1 Fpass1 Fpass2 Fstop2]/(Fs/2), [0 1 ...
+                       0], [Dstop1 Dpass Dstop2]);
+% Calculate the coefficients using the FIRPM function.
+b2 = firpm(N, Fo, Ao, W, {dens});
+Hd2 = dfilt.dffir(b2);
+x5=filter(Hd2,data);
+
+x1=x1';
+x2=x2';
+x3=x3';
+x4=x4';
+x5=x5';
+
+SNR_DELTA = zeros(size(x1,1),1); THD_DELTA = zeros(size(x1,1),1); SINAD_DELTA = zeros(size(x1,1),1);
+SNR_THETA = zeros(size(x2,1),1); THD_THETA = zeros(size(x2,1),1); SINAD_THETA = zeros(size(x2,1),1); 
+SNR_ALPHA = zeros(size(x3,1),1); THD_ALPHA = zeros(size(x3,1),1); SINAD_ALPHA = zeros(size(x3,1),1);
+SNR_BETA = zeros(size(x4,1),1); THD_BETA = zeros(size(x4,1),1); SINAD_BETA = zeros(size(x4,1),1);
+SNR_GAMMA = zeros(size(x5,1),1); THD_GAMMA = zeros(size(x5,1),1); SINAD_GAMMA = zeros(size(x5,1),1);
+
+for k = 1:size(data,2)
+    
+    % Extracting Electrode-wise Sound to Noise Ratio
+    snr_delta = snr(x1(k,:),Fs);
+    snr_theta = snr(x2(k,:),Fs);
+    snr_alpha = snr(x3(k,:),Fs);
+    snr_beta = snr(x4(k,:),Fs);
+    snr_gamma = snr(x5(k,:),Fs);
+    
+    SNR_DELTA(k) = snr_delta;
+    SNR_THETA(k) = snr_delta;
+    SNR_ALPHA(k) = snr_delta;
+    SNR_BETA(k) = snr_delta;
+    SNR_GAMMA(k) = snr_delta;
+    
+    % Extracting electrode-wise Total Harmonic Distribution
+    thd_delta = thd(x1(k,:),Fs);
+    thd_theta = thd(x2(k,:),Fs);
+    thd_alpha = thd(x3(k,:),Fs);
+    thd_beta = thd(x4(k,:),Fs);
+    thd_gamma = thd(x5(k,:),Fs);
+    
+    THD_DELTA(k) = thd_delta;
+    THD_THETA(k) = thd_delta;
+    THD_ALPHA(k) = thd_delta;
+    THD_BETA(k) = thd_delta;
+    THD_GAMMA(k) = thd_delta;
+    
+    % Extracting electrode-wise SINAD
+    sinad_delta = sinad(x1(k,:),Fs);
+    sinad_theta = sinad(x2(k,:),Fs);
+    sinad_alpha = sinad(x3(k,:),Fs);
+    sinad_beta = sinad(x4(k,:),Fs);
+    sinad_gamma = sinad(x5(k,:),Fs);
+    
+    SINAD_DELTA(k) = sinad_delta;
+    SINAD_THETA(k) = sinad_delta;
+    SINAD_ALPHA(k) = sinad_delta;
+    SINAD_BETA(k) = sinad_delta;
+    SINAD_GAMMA(k) = sinad_delta;
+    
+end
+
+SNR_DELTA_FINAL = [SNR_DELTA_FINAL;SNR_DELTA'];
+SNR_THETA_FINAL = [SNR_THETA_FINAL;SNR_THETA'];
+SNR_ALPHA_FINAL = [SNR_ALPHA_FINAL;SNR_ALPHA'];
+SNR_BETA_FINAL = [SNR_BETA_FINAL;SNR_BETA'];
+SNR_GAMMA_FINAL = [SNR_GAMMA_FINAL;SNR_GAMMA'];
+
+THD_DELTA_FINAL = [THD_DELTA_FINAL;THD_DELTA']; 
+THD_THETA_FINAL = [THD_THETA_FINAL;THD_THETA'];
+THD_ALPHA_FINAL = [THD_ALPHA_FINAL;THD_ALPHA'];
+THD_BETA_FINAL = [THD_BETA_FINAL;THD_BETA'];
+THD_GAMMA_FINAL = [THD_GAMMA_FINAL;THD_GAMMA'];
+
+SINAD_DELTA_FINAL = [SINAD_DELTA_FINAL;SINAD_DELTA'];
+SINAD_THETA_FINAL = [SINAD_THETA_FINAL;SINAD_THETA'];
+SINAD_ALPHA_FINAL = [SINAD_ALPHA_FINAL;SINAD_ALPHA'];
+SINAD_BETA_FINAL = [SINAD_BETA_FINAL;SINAD_BETA'];
+SINAD_GAMMA_FINAL = [SINAD_GAMMA_FINAL;SINAD_GAMMA'];
 
 
-% Calculate sum of squared absolute values within each frequency band for
-% each electrode
-% Perform Azimuthal transformation of electrode locations;
-% Use Clough-Tocher Scheme for interpolating the scattered power elements
+end 
 
-% FFT power values extracted for three frequency bands (theta, alpha, beta). 
-% Features are arranged in band and electrodes order (theta_1, theta_2..., theta_64, alpha_1, alpha_2, ..., beta_64). 
-% There are seven time windows, features for each time window are aggregated sequentially (i.e. 0:191 --> time window 1, 192:383 --> time windw 2 and so on. 
-% Last column contains the class labels (load levels).
-% What I need ? 1) Location of each electrode(3-D Coordinates)
-end   
+DELTA_POWER = DELTA_POWER(2:end,:);
+THETA_POWER = THETA_POWER(2:end,:);
+ALPHA_POWER = ALPHA_POWER(2:end,:);
+BETA_POWER = BETA_POWER(2:end,:);
+GAMMA_POWER = GAMMA_POWER(2:end,:);
+
+POWER = cat(1, DELTA_POWER, THETA_POWER, ALPHA_POWER, BETA_POWER, GAMMA_POWER);
+
+SNR_DELTA_FINAL = SNR_DELTA_FINAL(2:end,:);
+SNR_THETA_FINAL = SNR_THETA_FINAL(2:end,:);
+SNR_ALPHA_FINAL = SNR_ALPHA_FINAL(2:end,:);
+SNR_BETA_FINAL = SNR_BETA_FINAL(2:end,:);
+SNR_GAMMA_FINAL = SNR_GAMMA_FINAL(2:end,:);
+
+SNR = cat(1,SNR_DELTA_FINAL, SNR_THETA_FINAL, SNR_ALPHA_FINAL, SNR_BETA_FINAL, SNR_GAMMA_FINAL);
+
+THD_DELTA_FINAL = THD_DELTA_FINAL(2:end,:);
+THD_THETA_FINAL = THD_THETA_FINAL(2:end,:);
+THD_ALPHA_FINAL = THD_ALPHA_FINAL(2:end,:);
+THD_BETA_FINAL = THD_BETA_FINAL(2:end,:);
+THD_GAMMA_FINAL = THD_GAMMA_FINAL(2:end,:);
+
+THD = cat(1,THD_DELTA_FINAL, THD_THETA_FINAL, THD_ALPHA_FINAL, THD_BETA_FINAL, THD_GAMMA_FINAL);
+
+SINAD_DELTA_FINAL = SINAD_DELTA_FINAL(2:end,:);
+SINAD_THETA_FINAL = SINAD_THETA_FINAL(2:end,:);
+SINAD_ALPHA_FINAL = SINAD_ALPHA_FINAL(2:end,:);
+SINAD_BETA_FINAL = SINAD_BETA_FINAL(2:end,:);
+SINAD_GAMMA_FINAL = SINAD_GAMMA_FINAL(2:end,:);
+
+SINAD = cat(1,SINAD_DELTA_FINAL, SINAD_THETA_FINAL, SINAD_ALPHA_FINAL, SINAD_BETA_FINAL, SINAD_GAMMA_FINAL);
+
+FEATURE_VECTOR = [POWER;SNR;THD;SINAD];
+
+
+
+
+
